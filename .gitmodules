@@ -1,0 +1,24 @@
+[submodule "external/llvm"]
+	path = external/llvm
+	url = https://github.com/sys-bio/llvm-13.x.git
+	shallow = true
+[submodule "external/libroadrunner-deps"]
+	path = external/libroadrunner-deps
+	url = https://github.com/sys-bio/libroadrunner-deps.git
+	shallow = true
+[submodule "external/roadrunner"]
+	path = external/roadrunner
+	url = https://github.com/sys-bio/roadrunner.git
+	shallow = true
+[submodule "external/antimony"]
+	path = external/antimony
+	url = https://github.com/sys-bio/antimony.git
+	shallow = true
+[submodule "external/nlohmann-json"]
+	path = external/nlohmann-json
+	url = https://github.com/nlohmann/json.git
+	shallow = true
+[submodule "external/json-schema-validator"]
+	path = external/json-schema-validator
+	url = https://github.com/pboettch/json-schema-validator.git
+	shallow = true
