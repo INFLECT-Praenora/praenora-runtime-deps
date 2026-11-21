@@ -3,9 +3,11 @@
 #
 # Checks that the bundle's manifest names this build's version and labels, that the directories
 # it lists for consumers exist, with json-schema-validator's first (it holds the nlohmann/json that
-# consumers must find first), that the files the Praenora runtime's finders look for exist, and
-# that no CMake file of the bundle names a path in the build tree, which would not exist once the
-# build tree is gone or the bundle is moved. Prints each check; fails at the end if any failed.
+# consumers must find first), that the files the Praenora runtime's finders look for exist, that
+# the manifest lists license files for this repository and for every component and that they
+# exist, and that no CMake file of the bundle names a path in the build tree, which would not
+# exist once the build tree is gone or the bundle is moved. Prints each check; fails at the end if
+# any failed.
 #
 # One upstream exception is allowed: libroadrunner-deps' package files for libSBML, NuML and
 # libSEDML append the directory of their find modules at build time to CMAKE_MODULE_PATH, as in
@@ -135,6 +137,27 @@ foreach(file IN ITEMS
 nlohmann_json_schema_validatorConfig.cmake"
         "json-schema-validator/lib/${static_prefix}nlohmann_json_schema_validator${static_suffix}")
     check_exists("${file}")
+endforeach()
+
+# License files: at least one for this repository and for each component, and each exists.
+# check_licenses(<what> <member>...)
+macro(check_licenses what)
+    string(JSON _count ERROR_VARIABLE _json_error LENGTH "${manifest}" ${ARGN})
+    if(NOT _json_error AND _count GREATER 0)
+        _report(TRUE "${what} lists ${_count} license file(s)")
+        math(EXPR _last "${_count} - 1")
+        foreach(_index RANGE ${_last})
+            _json(_license ${ARGN} ${_index})
+            check_exists("${_license}")
+        endforeach()
+    else()
+        _report(FALSE "${what} lists license files")
+    endif()
+endmacro()
+check_licenses("source.licenses" source licenses)
+foreach(component IN ITEMS llvm libroadrunner-deps roadrunner antimony nlohmann-json
+                           json-schema-validator)
+    check_licenses("components.${component}.licenses" components ${component} licenses)
 endforeach()
 
 # No CMake file of the bundle names the build tree, apart from the upstream exception above.

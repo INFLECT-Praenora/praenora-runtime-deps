@@ -7,7 +7,7 @@ set(CMAKE_OSX_DEPLOYMENT_TARGET "14.0" CACHE STRING
     "Minimum macOS version of the dependencies (macOS only)")
 
 project(praenora_runtime_deps
-    VERSION 0.1.0
+    VERSION 0.1.1
     DESCRIPTION "Build dependencies of the Praenora runtime"
     HOMEPAGE_URL "https://github.com/INFLECT-Praenora/praenora-runtime-deps"
     LANGUAGES C CXX)

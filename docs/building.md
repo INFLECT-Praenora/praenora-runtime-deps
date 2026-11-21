@@ -2,7 +2,8 @@
 
 This guide is for developers who build the dependency bundle of the
 [Praenora runtime](https://github.com/INFLECT-Praenora/praenora-runtime) on their own machine. What
-the bundle holds, and how the runtime consumes it, is in [outputs.md](outputs.md).
+the bundle holds, and how the runtime consumes it, is in [outputs.md](outputs.md); how GitHub
+Actions builds the bundles and how they are published is in [releasing.md](releasing.md).
 
 ## Requirements
 
@@ -49,6 +50,10 @@ Each preset builds one configuration for one platform into `build/<preset>` and 
 | `linux-x64-debug` | Linux x86-64 | Debug | Not yet verified |
 | `windows-x64-release` | Windows x86-64 | Release | Not yet verified |
 | `windows-x64-debug` | Windows x86-64 | Debug | Not yet verified |
+
+GitHub Actions builds and checks `linux-x64-release`, `macos-arm64-release`, `windows-x64-release`
+and `windows-x64-debug` for every pull request to `main`, on fixed runner images
+([releasing.md](releasing.md#the-workflow)).
 
 On macOS and Linux, the Praenora runtime links a Release bundle in each of its build types, as it
 links libRoadRunner's Release binaries; on macOS, a Debug build of the runtime is verified with a
@@ -116,7 +121,9 @@ name only the files that changed.
    reads the versions the installed files report and stops when one of LLVM, libRoadRunner,
    libAntimony, nlohmann/json and json-schema-validator differs from
    [`cmake/PraenoraDepsVersions.cmake`](../cmake/PraenoraDepsVersions.cmake).
-   It records the commit of this repository and of each submodule, and writes the manifest
+   It records the commit of this repository and of each submodule, copies this repository's
+   `LICENSE` and the license files that `cmake/PraenoraDepsVersions.cmake` lists for each
+   component into `licenses/` (and stops when one is missing), and writes the manifest
    `praenora-runtime-deps.json` and the CMake package `PraenoraRuntimeDeps` into the bundle.
 
 The target `package` builds everything, then archives the bundle with CPack
@@ -128,8 +135,9 @@ The target `package` builds everything, then archives the bundle with CPack
 
 - `bundle.manifest` checks that the manifest names this build's version, platform and compiler,
   that the directories it lists for consumers exist, with `json-schema-validator` first, that the
-  files the Praenora runtime's finders look for exist, and that no CMake file of the bundle names
-  a path in the build tree.
+  files the Praenora runtime's finders look for exist, that it lists license files for this
+  repository and for every component and that they exist, and that no CMake file of the bundle
+  names a path in the build tree.
 - `bundle.consumer` configures and builds [`tests/consumer`](../tests/consumer), a project that
   finds the bundle through `find_package(PraenoraRuntimeDeps)` with the bundle as its only prefix,
   finds json-schema-validator and nlohmann/json (and checks that both come from the bundle),
@@ -165,7 +173,10 @@ change together. For example, for a new libRoadRunner tag `v2.11.1`:
    for its fetched dependencies (`cmake/PraenoraDependencies.cmake` in its repository).
 3. Update the repository, tag and version of each changed component in
    `cmake/PraenoraDepsVersions.cmake`, and raise the bundle's version in `CMakeLists.txt`
-   ([outputs.md](outputs.md#versions)).
+   ([outputs.md](outputs.md#versions)). Check the component's license files: the list
+   `PRAENORA_DEPS_<component>_LICENSES` names them, the build stops when one of them is missing,
+   and a new or changed license goes into the table in
+   [outputs.md](outputs.md#licenses).
 4. Build and check the bundle, then build and test the Praenora runtime against it. The runtime
    accepts libRoadRunner 2.11.x, LLVM 13 and libAntimony 3.3.x only; another release needs a
    change in the runtime first.

@@ -2,9 +2,9 @@
 #
 # - The target praenora_deps_bundle (part of the default build) runs cmake/PraenoraDepsBundle.cmake
 #   after the upstream builds. It reads the versions the installed files report, stops when one
-#   differs from cmake/PraenoraDepsVersions.cmake, and writes the manifest
-#   praenora-runtime-deps.json and the CMake package PraenoraRuntimeDeps into the bundle
-#   (docs/outputs.md).
+#   differs from cmake/PraenoraDepsVersions.cmake, copies the license files into licenses/, and
+#   writes the manifest praenora-runtime-deps.json and the CMake package PraenoraRuntimeDeps into
+#   the bundle (docs/outputs.md).
 # - The target package (CPack) builds everything, then archives the bundle as
 #   package/<package name>.tar.xz (.zip on Windows) in the build tree, with a top-level directory
 #   of the same name and a .sha256 file beside it.
@@ -35,7 +35,7 @@ foreach(_praenora_deps_variable IN ITEMS
         "set(${_praenora_deps_variable} [==[${${_praenora_deps_variable}}]==])\n")
 endforeach()
 foreach(_praenora_deps_component IN LISTS PRAENORA_DEPS_COMPONENTS)
-    foreach(_praenora_deps_field IN ITEMS REPOSITORY REF VERSION)
+    foreach(_praenora_deps_field IN ITEMS REPOSITORY REF VERSION LICENSES)
         set(_praenora_deps_variable
             PRAENORA_DEPS_${_praenora_deps_component}_${_praenora_deps_field})
         string(APPEND _praenora_deps_inputs

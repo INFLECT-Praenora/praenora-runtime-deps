@@ -2,7 +2,8 @@
 # (docs/building.md#checking-a-bundle).
 #
 # - bundle.manifest (check_manifest.cmake): the manifest and the CMake package agree with this
-#   build's labels and versions, and the files that the Praenora runtime's finders look for exist.
+#   build's labels and versions, the files that the Praenora runtime's finders look for exist, and
+#   the license files that the manifest lists exist.
 # - bundle.consumer (run_consumer.cmake): a project outside this build finds the bundle through
 #   find_package(PraenoraRuntimeDeps), finds json-schema-validator, nlohmann/json, libRoadRunner
 #   and libAntimony as the runtime does, and runs a program that compares the versions the

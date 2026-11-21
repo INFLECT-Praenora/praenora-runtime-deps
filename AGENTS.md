@@ -11,8 +11,8 @@ them as a bundle that the runtime's build consumes: LLVM 13, libRoadRunner 2.11 
 libroadrunner-deps, and libAntimony 3.3, which the runtime's `roadrunner` and `antimony` service
 providers link statically, and json-schema-validator 2.4 with the nlohmann/json 3.12 it is
 compiled against, which every build of the runtime links. The upstream sources are git
-submodules; this repository holds only the build, the packaging, the checks and the
-documentation.
+submodules; this repository holds only the build, the packaging, the checks, the workflow that
+builds and releases the bundles, and the documentation.
 
 The bundle's layout matches what the Praenora runtime's finders expect, so the runtime builds
 against it without changes. Producing bundles that the runtime can consume takes priority over
@@ -24,8 +24,9 @@ Verified on macOS arm64 with AppleClang 17 (Release): the build, the bundle's ch
 and a Debug build of the Praenora runtime with both providers against an unpacked copy of the
 archive, with json-schema-validator and nlohmann/json from the bundle, in which all of the
 runtime's tests pass. The Linux and Windows presets are written but
-not yet verified. Building the bundles with GitHub Actions
-and publishing them for automated builds of the Praenora runtime is planned and not yet done.
+not yet verified. The GitHub Actions workflow (`.github/workflows/build.yml`), which builds the
+bundles for pull requests and drafts releases for automated builds of the Praenora runtime, is
+written but has not run yet (not yet verified); no release has been published.
 
 ## Setup and commands
 
@@ -47,10 +48,12 @@ upstream build for changes. Build trees go to `build/<preset>`, bundles to `inst
 ## Repository map
 
 ```
+LICENSE                   MIT license of this repository's files
 CMakeLists.txt            superbuild: project(VERSION) is the bundle's version
 CMakePresets.json         {linux-x64,macos-arm64,windows-x64}-{release,debug}
 cmake/
-  PraenoraDepsVersions.cmake   upstream repositories, tags and expected versions; manifest format
+  PraenoraDepsVersions.cmake   upstream repositories, tags, expected versions and license files;
+                               manifest format
   PraenoraDepsPlatform.cmake   OS, architecture, compiler and configuration labels; bundle name
   PraenoraDepsUpstreams.cmake  the external projects and the options passed to each
   PraenoraDepsPackage.cmake    the bundle step target and CPack (target package)
@@ -62,14 +65,21 @@ tests/                    bundle.manifest (check_manifest.cmake) and bundle.cons
 external/                 submodules: llvm (sys-bio/llvm-13.x), libroadrunner-deps,
                           roadrunner, antimony (all from github.com/sys-bio), nlohmann-json
                           (nlohmann/json), json-schema-validator (pboettch/json-schema-validator)
+.github/workflows/
+  build.yml               builds, checks and archives the bundles; drafts a release on request
 docs/                     building.md (developer guide), outputs.md (layout, names, versions,
-                          manifest, CMake package, consumption)
+                          manifest, CMake package, consumption, licenses), releasing.md (the
+                          workflow, its runners and the release procedure)
 ```
 
 ## Conventions
 
 - **Build tools.** The Praenora runtime's: CMake (3.24+, presets version 5), Ninja, CTest, CPack.
   No other build system and no scripts in other languages for the build.
+- **Workflow.** One GitHub Actions workflow, `.github/workflows/build.yml`. It prepares each runner
+  and runs the commands of the presets; what the build does stays in CMake. Runner labels name
+  fixed image versions, never `-latest`, and actions are pinned to commits. A change to the runners
+  follows [docs/releasing.md](docs/releasing.md#changing-a-runner-image).
 - **CMake style.** Four-space indentation, lines of at most 100 characters, lowercase commands.
   Variables of this project start with `PRAENORA_DEPS_`; functions and macros with
   `praenora_deps_` (`_praenora_deps_` when internal to one file). Each file under `cmake/` starts
@@ -91,6 +101,11 @@ docs/                     building.md (developer guide), outputs.md (layout, nam
   combinations that libRoadRunner's release workflow names, and for json-schema-validator and
   nlohmann/json the commits that the Praenora runtime pins. The runtime accepts libRoadRunner
   2.11.x, LLVM 13 and libAntimony 3.3.x only; check its finders before moving past them.
+- **Licenses.** This repository's files are under the MIT license (`LICENSE`). The libraries keep
+  their upstream licenses: each component's license files are listed in
+  `cmake/PraenoraDepsVersions.cmake` and copied into the bundle's `licenses/`. A new component, or
+  an upstream update that adds, moves or changes a license file, updates that list and the table
+  in [docs/outputs.md](docs/outputs.md#licenses) together.
 - **nlohmann/json.** json-schema-validator and every consumer of it must compile against one
   nlohmann/json version, because nlohmann/json names its version in its symbols. Keep the
   bundle's `json-schema-validator` directory first in `consumer.cmake_prefix_path`, and keep
@@ -101,6 +116,9 @@ docs/                     building.md (developer guide), outputs.md (layout, nam
 - **Consumers.** The layout, the manifest members and the CMake package's variables are an
   interface of the Praenora runtime's build. Change them only together with
   [docs/outputs.md](docs/outputs.md), and check the runtime against the new bundle.
+- **Releases.** Bundles are published only as releases that the workflow drafts from `main` and an
+  administrator publishes, following [docs/releasing.md](docs/releasing.md). A published release
+  never changes; a rebuilt bundle gets a new version.
 - **Verification.** Before reporting a change as done, build the bundle, run `ctest`, and, for any
   change to the libraries or the layout, build and test the Praenora runtime with both providers
   against it.
@@ -114,7 +132,5 @@ docs/                     building.md (developer guide), outputs.md (layout, nam
   a submodule moves only to an upstream commit.
 - No copies of upstream sources outside the submodules, and no downloads during the build.
 - Never commit build trees, bundles, archives or `CMakeUserPresets.json`.
-- No license file and no license metadata: licensing has not been decided, and distributing
-  bundles raises open license questions (the runtime's OQ-27 and OQ-29;
-  [docs/outputs.md](docs/outputs.md#distribution)).
+- No release, tag `v*` or release asset made by hand.
 - Agent instructions live in this file only.

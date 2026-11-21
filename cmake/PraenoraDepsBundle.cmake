@@ -11,7 +11,10 @@
 #    json-schema-validator differs from cmake/PraenoraDepsVersions.cmake;
 # 3. records the commit of this repository and of each submodule, and whether either differs from
 #    what this repository's HEAD records;
-# 4. writes <bundle>/praenora-runtime-deps.json and the CMake package
+# 4. copies this repository's LICENSE and each component's license files
+#    (PRAENORA_DEPS_<component>_LICENSES) into <bundle>/licenses, and stops with an error when one
+#    is missing;
+# 5. writes <bundle>/praenora-runtime-deps.json and the CMake package
 #    <bundle>/lib/cmake/PraenoraRuntimeDeps (docs/outputs.md).
 #
 # Paths in the manifest are relative to the bundle directory, so the bundle can be moved.
@@ -194,7 +197,38 @@ foreach(component IN LISTS PRAENORA_DEPS_COMPONENTS)
     endif()
 endforeach()
 
-# 4a. What a consumer adds to CMAKE_PREFIX_PATH, relative to the bundle: the directories that
+# 4. License files, under licenses/<component>/ with their paths in the submodule, and this
+# repository's under licenses/praenora-runtime-deps/. The directory is written anew each time, so
+# it holds the listed files only.
+set(licenses_dir "${bundle}/licenses")
+file(REMOVE_RECURSE "${licenses_dir}")
+set(missing_licenses "")
+set(source_licenses "licenses/praenora-runtime-deps/LICENSE")
+if(EXISTS "${PRAENORA_DEPS_SOURCE_DIR}/LICENSE")
+    configure_file("${PRAENORA_DEPS_SOURCE_DIR}/LICENSE" "${bundle}/${source_licenses}" COPYONLY)
+else()
+    string(APPEND missing_licenses "\n  LICENSE")
+endif()
+foreach(component IN LISTS PRAENORA_DEPS_COMPONENTS)
+    set(${component}_licenses "")
+    foreach(file IN LISTS PRAENORA_DEPS_${component}_LICENSES)
+        set(from "${PRAENORA_DEPS_SOURCE_DIR}/external/${component}/${file}")
+        if(EXISTS "${from}")
+            set(to "licenses/${component}/${file}")
+            configure_file("${from}" "${bundle}/${to}" COPYONLY)
+            list(APPEND ${component}_licenses "${to}")
+        else()
+            string(APPEND missing_licenses "\n  external/${component}/${file}")
+        endif()
+    endforeach()
+endforeach()
+if(missing_licenses)
+    message(FATAL_ERROR "License files listed in cmake/PraenoraDepsVersions.cmake are missing:"
+        "${missing_licenses}\nUpdate the lists with the submodules "
+        "(docs/building.md#updating-an-upstream-dependency).")
+endif()
+
+# 5a. What a consumer adds to CMAKE_PREFIX_PATH, relative to the bundle: the directories that
 # exist among those the Praenora runtime's finders need (docs/outputs.md#consuming-a-bundle).
 # json-schema-validator comes first: its nlohmann/json must be found before any other.
 set(prefix_path "")
@@ -205,7 +239,7 @@ foreach(dir IN ITEMS json-schema-validator roadrunner roadrunner/lib/cmake
     endif()
 endforeach()
 
-# 4b. The manifest.
+# 5b. The manifest.
 # _praenora_deps_json(<out> <value>): <value> as a JSON string, or null when it is empty.
 function(_praenora_deps_json out value)
     if(value STREQUAL "")
@@ -258,6 +292,8 @@ _praenora_deps_json(value "${source_commit}")
 _praenora_deps_set(source commit "${value}")
 _praenora_deps_json_bool(value "${source_modified}")
 _praenora_deps_set(source modified "${value}")
+_praenora_deps_json_array(value ${source_licenses})
+_praenora_deps_set(source licenses "${value}")
 
 _praenora_deps_set(platform "{}")
 _praenora_deps_json(value "${PRAENORA_DEPS_OS}")
@@ -311,6 +347,8 @@ foreach(component IN LISTS PRAENORA_DEPS_COMPONENTS)
     _praenora_deps_set(components ${component} modified "${value}")
     _praenora_deps_json(value "${${component}_prefix}")
     _praenora_deps_set(components ${component} prefix "${value}")
+    _praenora_deps_json_array(value ${${component}_licenses})
+    _praenora_deps_set(components ${component} licenses "${value}")
 endforeach()
 _praenora_deps_json_array(value ${llvm_targets})
 _praenora_deps_set(components llvm targets "${value}")
@@ -338,7 +376,7 @@ _praenora_deps_set(consumer llvm_install_prefix "${value}")
 
 file(CONFIGURE OUTPUT "${bundle}/praenora-runtime-deps.json" CONTENT "${manifest}\n" @ONLY)
 
-# 4c. The CMake package.
+# 5c. The CMake package.
 set(config_prefix_path "")
 foreach(dir IN LISTS prefix_path)
     list(APPEND config_prefix_path "\${PraenoraRuntimeDeps_ROOT}/${dir}")

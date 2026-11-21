@@ -1,10 +1,12 @@
 # Outputs
 
 A build produces a bundle: a directory that holds the installations of LLVM, libRoadRunner (with
-libroadrunner-deps), libAntimony and json-schema-validator (with nlohmann/json), a manifest and a
-CMake package. The `package` target archives it. This document describes the bundle, its name
-and version, and how the [Praenora runtime](https://github.com/INFLECT-Praenora/praenora-runtime)
-consumes it.
+libroadrunner-deps), libAntimony and json-schema-validator (with nlohmann/json), their license
+files, a manifest and a CMake package. The `package` target archives it, and releases of this
+repository publish the archives ([releasing.md](releasing.md)). This document describes the
+bundle, its name and version, how the
+[Praenora runtime](https://github.com/INFLECT-Praenora/praenora-runtime) consumes it, and the
+licenses of what it holds.
 
 ## Layout
 
@@ -28,6 +30,9 @@ consumes it.
                                     lib/cmake/nlohmann_json_schema_validator/;
                                     and the nlohmann/json 3.12.0 it is compiled against:
                                     include/nlohmann/, share/cmake/nlohmann_json/
+  licenses/                         license files: this repository's in praenora-runtime-deps/,
+                                    each component's in <component>/ under its path in the
+                                    upstream sources ([Licenses](#licenses))
 ```
 
 The installation directories correspond to the prefixes that the Praenora runtime's
@@ -46,7 +51,7 @@ A bundle's name identifies its version, platform, compiler and build type:
 praenora-runtime-deps-<version>-<os>-<arch>-<compiler>-<config>
 ```
 
-for example `praenora-runtime-deps-0.1.0-macos-arm64-appleclang17-release`. No field contains `-`.
+for example `praenora-runtime-deps-0.1.1-macos-arm64-appleclang17-release`. No field contains `-`.
 
 | Field | Values | Source |
 |---|---|---|
@@ -59,7 +64,8 @@ for example `praenora-runtime-deps-0.1.0-macos-arm64-appleclang17-release`. No f
 The operating system and architecture names are the Praenora runtime's. The archive is
 `<name>.tar.xz` on Linux and macOS and `<name>.zip` on Windows, written to
 `build/<preset>/package/`; it unpacks into a directory `<name>/`. Beside it, `<name>.tar.xz.sha256`
-(or `.zip.sha256`) holds its SHA-256 checksum in the format of `sha256sum`.
+(or `.zip.sha256`) holds its SHA-256 checksum in the format of `sha256sum`. A release publishes
+both files under these names ([From a release](#from-a-release)).
 
 Labels that do not appear in the name are in the manifest and the CMake package: the macOS
 deployment target, the Linux distribution, the compiler's full version, the C++ standard library
@@ -72,9 +78,14 @@ which the manifest records. It is `project(VERSION)` in `CMakeLists.txt`.
 
 - **Minor version** (while the major version is 0), or **major version** (from 1.0): raised by
   every change to what a consumer links or finds: an upstream commit, an upstream build option, a
-  default such as the macOS deployment target, the layout, or a manifest format version.
-- **Patch version**: raised by changes that leave the libraries and the layout as they were, such
-  as a new manifest field, a fix to the CMake package, or documentation.
+  default such as the macOS deployment target, the compiler that builds a published bundle, the
+  layout of the installation directories, or a manifest format version.
+- **Patch version**: raised by changes that leave the libraries and the installation directories
+  as they were, such as a new manifest field, a change to the license files, a fix to the CMake
+  package, or documentation.
+
+A published release is never replaced ([releasing.md](releasing.md)), so a bundle that must be
+built again for a published version gets a new version.
 
 Bundles of one version built on other platforms or with other compilers differ in their names. Two
 builds of one commit of this repository have the same version; the manifest's `source.commit`
@@ -94,6 +105,7 @@ value that could not be determined is `null`.
 | `manifest_version` | Format version of the manifest, `1`. Raised when a member is removed or changes meaning. |
 | `name`, `version`, `package` | `praenora-runtime-deps`, the bundle's version and its name ([Names](#names)). |
 | `source.repository`, `source.commit`, `source.modified` | This repository, the commit the bundle was built from, and whether the working tree had uncommitted changes to tracked files. |
+| `source.licenses` | This repository's license file in the bundle, `licenses/praenora-runtime-deps/LICENSE`, as an array. |
 | `platform.os`, `platform.arch` | The `os` and `arch` labels. |
 | `platform.os_min_version` | macOS: the deployment target (`CMAKE_OSX_DEPLOYMENT_TARGET`). |
 | `platform.distribution` | Linux: the distribution and its version, from `/etc/os-release`, such as `ubuntu-24.04`. |
@@ -101,7 +113,7 @@ value that could not be determined is `null`.
 | `compiler.cxx_stdlib` | `libc++`, `libstdc++` or `msvc-stl`. |
 | `compiler.msvc_runtime` | Windows: `MultiThreadedDLL` (`/MD`) or `MultiThreadedDebugDLL` (`/MDd`). |
 | `build_type` | `Release` or `Debug`. |
-| `components.<name>` | For `llvm`, `libroadrunner-deps`, `roadrunner`, `antimony`, `nlohmann-json` and `json-schema-validator`: `version` (as the installed files report it; `null` for libroadrunner-deps, which states none), `repository`, `ref` (the upstream tag), `commit` (the submodule's commit), `modified` (whether the submodule differs from the commit this repository records, or has changes in its working tree) and `prefix` (the directory that holds it). `components.llvm.targets` lists LLVM's targets. |
+| `components.<name>` | For `llvm`, `libroadrunner-deps`, `roadrunner`, `antimony`, `nlohmann-json` and `json-schema-validator`: `version` (as the installed files report it; `null` for libroadrunner-deps, which states none), `repository`, `ref` (the upstream tag), `commit` (the submodule's commit), `modified` (whether the submodule differs from the commit this repository records, or has changes in its working tree), `prefix` (the directory that holds it) and `licenses` (its license files in the bundle, [Licenses](#licenses)). `components.llvm.targets` lists LLVM's targets. |
 | `libraries` | Versions of libraries inside libroadrunner-deps: `libsbml`, `sundials`, `poco`, `expat`, `zlib`, `sbmlnetwork`. |
 | `consumer.cmake_prefix_path` | The directories a consumer adds to `CMAKE_PREFIX_PATH`, in this order; `json-schema-validator` is first. |
 | `consumer.llvm_install_prefix` | The directory a consumer passes as `LLVM_INSTALL_PREFIX`. |
@@ -179,6 +191,48 @@ The runtime's sanitizer builds compile json-schema-validator from its sources in
 clone of this repository is a copy of the commit the runtime pins, which
 `FETCHCONTENT_SOURCE_DIR_NLOHMANN_JSON_SCHEMA_VALIDATOR` can name (not yet verified).
 
+### From a release
+
+The release `v<version>` of this repository holds the archive of each bundle of that version and
+its `.sha256` file ([releasing.md](releasing.md)), at
+`https://github.com/INFLECT-Praenora/praenora-runtime-deps/releases/download/v<version>/<file>`.
+Published releases do not change. A consumer pins the version and, for each platform, the
+archive's name and SHA-256, and checks the archive against the pinned SHA-256 after downloading
+it; the `.sha256` file beside the archive only detects a damaged download. Raising the pin is a
+change of the consumer, reviewed like any other.
+
+A job of the Praenora runtime on GitHub Actions uses the bundle built on its own runner image
+(the runner labels are in [releasing.md](releasing.md#the-workflow)): the runtime must build with
+the compiler that built the bundle, or a newer one of the same family. For example, on Linux
+(not yet verified; the runtime has no such job yet):
+
+```yaml
+- name: Fetch the dependency bundle
+  env:
+    GH_TOKEN: ${{ github.token }}
+    DEPS_VERSION: 0.1.1
+    DEPS_ARCHIVE: praenora-runtime-deps-0.1.1-linux-x86_64-gcc13-release.tar.xz
+    DEPS_SHA256: <the archive's SHA-256>
+  run: |
+    gh release download "v$DEPS_VERSION" --repo INFLECT-Praenora/praenora-runtime-deps \
+        --pattern "$DEPS_ARCHIVE" --dir "$RUNNER_TEMP"
+    cd "$RUNNER_TEMP"
+    echo "$DEPS_SHA256  $DEPS_ARCHIVE" | shasum -a 256 -c
+    tar -xf "$DEPS_ARCHIVE"
+    echo "PRAENORA_RUNTIME_DEPS=$RUNNER_TEMP/${DEPS_ARCHIVE%.tar.xz}" >> "$GITHUB_ENV"
+```
+
+This repository is public, so the download needs no secret, and it works in jobs for pull
+requests from forks. On Windows the archive is a `.zip`. A hidden configure preset of the runtime then
+lists the bundle's directories as in
+[The Praenora runtime's local presets](#the-praenora-runtimes-local-presets), with
+`$env{PRAENORA_RUNTIME_DEPS}` in place of `<bundle>`; on Windows, `roadrunner/cmake` is among
+them (`consumer.cmake_prefix_path` lists the directories of each platform). The runtime's other
+dependencies come from the runner's package manager. A developer can download an archive the same
+way, for example
+`gh release download v0.1.1 --repo INFLECT-Praenora/praenora-runtime-deps --pattern '*-macos-arm64-*'`,
+instead of building the bundle.
+
 ### Checking a bundle at build time
 
 A consumer's build can check a bundle's version and labels before it uses the bundle:
@@ -214,9 +268,51 @@ find modules of libroadrunner-deps' installation in the build tree. Where that d
 exist, the line has no effect and CMake's own `FindEXPAT` module is used, as with libRoadRunner's
 release binaries.
 
-### Distribution
+## Licenses
 
-Distributing a bundle, as an archive or otherwise, raises the license questions that the Praenora
-runtime's open-questions register (`docs/open-questions.md` in its repository) records for its
-providers: OQ-27 for libRoadRunner and LLVM, OQ-29 for libAntimony. Among them, libSBML is licensed
-under the LGPL 2.1 and the providers link it statically.
+This repository's files are under the MIT license ([LICENSE](../LICENSE)): the build, the checks,
+the documentation, and the manifest and CMake package that the build writes into a bundle. The
+libraries in a bundle are not: each keeps the license of its upstream project. The bundle step
+copies the license files of every component into `licenses/<component>/`, under their paths in the
+upstream sources, and this repository's `LICENSE` into `licenses/praenora-runtime-deps/`; the
+manifest lists them (`source.licenses`, `components.<name>.licenses`). The files are listed in
+[`cmake/PraenoraDepsVersions.cmake`](../cmake/PraenoraDepsVersions.cmake), and the build stops
+when one is missing.
+
+| Component | License files (under `licenses/<component>/`) | License, as the files state it |
+|---|---|---|
+| LLVM | `llvm/LICENSE.TXT` | Apache License 2.0 with LLVM Exceptions |
+| libRoadRunner | `LICENSE.txt`, `NOTICE.txt` | Apache License 2.0; `NOTICE.txt` names the software it uses |
+| libSBML (libroadrunner-deps) | `third_party/libsbml/LICENSE.txt`, `third_party/libsbml/COPYING.txt` | LGPL 2.1 or later |
+| libNUML (libroadrunner-deps) | `third_party/NuML/libnuml/LICENSE.txt` | LGPL 2.1 or later |
+| libSEDML (libroadrunner-deps) | `third_party/libSEDML/LICENSE.txt` | BSD-style |
+| SUNDIALS (libroadrunner-deps) | `third_party/sundials/LICENSE`, `third_party/sundials/NOTICE` | BSD 3-Clause |
+| POCO (libroadrunner-deps) | `third_party/poco/LICENSE` | Boost Software License 1.0 |
+| SBMLNetwork (libroadrunner-deps) | `third_party/SBMLNetwork/LICENSE` | MIT |
+| CLAPACK (libroadrunner-deps) | `third_party/clapack/COPYING` | BSD-style (LAPACK) |
+| expat (libroadrunner-deps) | `third_party/expat/COPYING` | MIT |
+| zlib (libroadrunner-deps) | `third_party/zlib/LICENSE` | zlib |
+| bzip2 (libroadrunner-deps) | `third_party/bzip2/LICENSE` | BSD-style |
+| NLEQ1, NLEQ2 (libroadrunner-deps) | none | See below |
+| rr-libstruct (libroadrunner-deps) | none | BSD-style, in its source files |
+| libAntimony | `LICENSE.txt` | BSD 3-Clause |
+| nlohmann/json | `LICENSE.MIT` | MIT |
+| json-schema-validator | `LICENSE` | MIT |
+
+The third column summarizes what the files say; no license review has been made. Points that
+publishing bundles depends on:
+
+- **NLEQ1 and NLEQ2.** libRoadRunner links both, so the bundle holds them as static libraries
+  (`roadrunner/lib`, `nleq1-static` and `nleq2-static`). Their source files have no license file;
+  they state the terms of the Zuse Institute Berlin (ZIB): use and modification for non-commercial
+  purposes, no delivery of the code without ZIB's permission, and a license agreement with ZIB for
+  commercial use. libRoadRunner's `NOTICE.txt` quotes these terms. Whether bundles that hold them
+  may be published is open.
+- **rr-libstruct** states a BSD license in its source files (`Wrappers/C/lsc_api.h`) and has no
+  license file; the bundle does not hold that text.
+- **libSBML and libNUML** are licensed under the LGPL 2.1 or later. Their sources are the commits
+  that the manifest names. The Praenora runtime's providers link them statically.
+
+The Praenora runtime's open-questions register (`docs/open-questions.md` in its repository)
+records the license questions of its providers: OQ-27 for libRoadRunner and LLVM, OQ-29 for
+libAntimony.
