@@ -1,0 +1,249 @@
+# Builds the dependency bundle on each platform, checks it and archives it (docs/releasing.md).
+#
+# - On a pull request to main: builds and checks every bundle and keeps the archives as workflow
+#   artifacts for 7 days.
+# - Run manually (Actions > Build > Run workflow, or gh workflow run build.yml --ref <branch>): the
+#   same, for the chosen branch. With the input publish, which only main accepts, it then creates a
+#   draft release v<version> with the archives and their checksums; an administrator publishes it.
+#
+# The jobs run the commands of docs/building.md. Bundles are built with the compiler of the runner
+# image, which names them, so the runner labels are fixed versions, never -latest.
+
+name: Build
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Create a draft release v<version> with the bundles (main only)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  prepare:
+    name: Prepare
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    env:
+      PUBLISH: ${{ github.event_name == 'workflow_dispatch' && inputs.publish }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Read the bundle's version
+        id: version
+        run: |
+          version=$(sed -n 's/^    VERSION \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)$/\1/p' \
+              CMakeLists.txt)
+          if [ -z "$version" ]; then
+            echo "::error::No project(VERSION) found in CMakeLists.txt"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Bundle version $version"
+      - name: Check that a release can be made
+        if: env.PUBLISH == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if [ "$GITHUB_REF" != refs/heads/main ]; then
+            echo "::error::Releases are made from main only, not from $GITHUB_REF"
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" > /dev/null; then
+            echo "::error::The tag v$VERSION exists already; raise the version in CMakeLists.txt"
+            exit 1
+          fi
+
+  build:
+    name: ${{ matrix.preset }}
+    needs: prepare
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - preset: linux-x64-release
+            runner: ubuntu-24.04
+          - preset: macos-arm64-release
+            runner: macos-26
+          - preset: windows-x64-release
+            runner: windows-2022
+          - preset: windows-x64-debug
+            runner: windows-2022
+    steps:
+      # Without line-ending conversion, the submodules' working trees match their commits (the
+      # manifest records any difference); long paths are needed for LLVM's sources.
+      - name: Configure Git (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.longpaths true
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch the upstream sources
+        run: git submodule update --init --recursive --depth 1
+      - name: Install Ninja (Linux)
+        if: runner.os == 'Linux'
+        run: command -v ninja || { sudo apt-get update && sudo apt-get install -y ninja-build; }
+      - name: Install Ninja (macOS)
+        if: runner.os == 'macOS'
+        run: command -v ninja || brew install ninja
+      # The presets need cl and Ninja from a Visual Studio 2022 developer environment for x64. The
+      # variables that entering it changes are kept for the later steps.
+      - name: Enter the Visual Studio 2022 developer environment (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vs = & $vswhere -latest -products * -version '[17.0,18.0)' `
+              -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vs) { throw 'Visual Studio 2022 with the x64 C++ tools is not installed.' }
+          $before = @{}
+          Get-ChildItem env: | ForEach-Object { $before[$_.Name] = $_.Value }
+          Import-Module (Join-Path $vs 'Common7\Tools\Microsoft.VisualStudio.DevShell.dll')
+          Enter-VsDevShell -VsInstallPath $vs -SkipAutomaticLocation `
+              -DevCmdArguments '-arch=x64 -host_arch=x64' | Out-Null
+          Get-ChildItem env: | Where-Object { $before[$_.Name] -cne $_.Value } | ForEach-Object {
+            "$($_.Name)=$($_.Value)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          }
+      # cl stops with error C1083 when the path of an object file is longer than 259 characters,
+      # and the upstream builds write object files up to 186 characters below build/<preset>/work
+      # (PRAENORA_DEPS_LONGEST_OBJECT_PATH, which configuration checks). In the checkout
+      # D:\a\praenora-runtime-deps\praenora-runtime-deps, the longest object file path has 266
+      # characters; in P:\praenora-runtime-deps, the same checkout through a drive letter for its
+      # parent directory, it has 242. The steps that run CMake run there, all from the same path,
+      # because the build tree records it (docs/building.md#platform-notes).
+      - name: Shorten the path of the checkout (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (Test-Path -LiteralPath 'P:\') { throw 'The drive P: exists already.' }
+          subst P: (Split-Path -Parent $env:GITHUB_WORKSPACE)
+          if ($LASTEXITCODE -ne 0) { throw "subst failed with exit code $LASTEXITCODE." }
+          $checkout = Join-Path 'P:\' (Split-Path -Leaf $env:GITHUB_WORKSPACE)
+          if (-not (Test-Path -LiteralPath (Join-Path $checkout 'CMakePresets.json'))) {
+            throw "$checkout does not hold the checkout."
+          }
+          "PRAENORA_DEPS_CHECKOUT=$checkout" |
+              Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Output "The build runs in $checkout."
+      - name: Show the tools
+        run: |
+          cmake --version
+          ninja --version
+      - name: Configure
+        working-directory: ${{ env.PRAENORA_DEPS_CHECKOUT || github.workspace }}
+        run: cmake --preset ${{ matrix.preset }}
+      - name: Build
+        working-directory: ${{ env.PRAENORA_DEPS_CHECKOUT || github.workspace }}
+        run: cmake --build --preset ${{ matrix.preset }}
+      - name: Check the bundle
+        working-directory: ${{ env.PRAENORA_DEPS_CHECKOUT || github.workspace }}
+        run: ctest --preset ${{ matrix.preset }}
+      - name: Check that the sources were unmodified
+        shell: bash
+        env:
+          MANIFEST: install/${{ matrix.preset }}/praenora-runtime-deps.json
+        run: |
+          if ! jq -e '.source.modified == false and
+                      ([.components[].modified] | all(. == false))' "$MANIFEST" > /dev/null; then
+            jq '{source: .source.modified, components: (.components | map_values(.modified))}' \
+                "$MANIFEST"
+            echo "::error::The manifest records modified sources"
+            exit 1
+          fi
+      - name: Archive the bundle
+        working-directory: ${{ env.PRAENORA_DEPS_CHECKOUT || github.workspace }}
+        run: cmake --build --preset ${{ matrix.preset }} --target package
+      - name: Upload the archive
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ matrix.preset }}
+          path: |
+            build/${{ matrix.preset }}/package/*.tar.xz
+            build/${{ matrix.preset }}/package/*.zip
+            build/${{ matrix.preset }}/package/*.sha256
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+  release:
+    name: Draft release
+    needs: [prepare, build]
+    if: github.event_name == 'workflow_dispatch' && inputs.publish
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Download the archives
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Check the archives
+        working-directory: dist
+        run: |
+          shopt -s nullglob
+          archives=(praenora-runtime-deps-*.tar.xz praenora-runtime-deps-*.zip)
+          if [ "${#archives[@]}" -eq 0 ]; then
+            echo "::error::No archives were downloaded"
+            exit 1
+          fi
+          for archive in "${archives[@]}"; do
+            case "$archive" in
+              "praenora-runtime-deps-$VERSION-"*) ;;
+              *) echo "::error::$archive is not of version $VERSION"; exit 1 ;;
+            esac
+            sha256sum -c "$archive.sha256"
+          done
+      - name: Write the release notes
+        run: |
+          linux=$(ls dist/praenora-runtime-deps-"$VERSION"-linux-*.tar.xz)
+          tar -xJf "$linux" -O --wildcards '*/praenora-runtime-deps.json' \
+              > "$RUNNER_TEMP/manifest.json"
+          docs="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/$GITHUB_SHA/docs"
+          {
+            echo "Dependency bundles of the Praenora runtime, version $VERSION, built from"
+            echo "$GITHUB_SHA."
+            echo
+            echo "| Component | Version | Upstream ref |"
+            echo "|---|---|---|"
+            jq -r '.components | to_entries[] |
+                   "| \(.key) | \(.value.version // "-") | \(.value.ref) |"' \
+                "$RUNNER_TEMP/manifest.json"
+            echo
+            echo "Each archive has a \`.sha256\` file beside it. The layout, the names and how the"
+            echo "Praenora runtime consumes a bundle: [docs/outputs.md]($docs/outputs.md)."
+            echo
+            echo "This repository's files are under the MIT license. The libraries in the bundles"
+            echo "keep their own licenses; each bundle holds their license files in \`licenses/\`"
+            echo "([docs/outputs.md]($docs/outputs.md#licenses))."
+          } > "$RUNNER_TEMP/notes.md"
+          cat "$RUNNER_TEMP/notes.md"
+      - name: Create the draft release
+        run: |
+          if gh release view "v$VERSION" > /dev/null 2>&1; then
+            echo "::error::A release v$VERSION exists already"
+            exit 1
+          fi
+          gh release create "v$VERSION" --draft --target "$GITHUB_SHA" \
+              --title "praenora-runtime-deps $VERSION" --notes-file "$RUNNER_TEMP/notes.md" \
+              dist/*
