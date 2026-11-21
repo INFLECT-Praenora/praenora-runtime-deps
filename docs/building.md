@@ -96,10 +96,13 @@ searched, so packages registered on the build machine are not found, and install
 name only the files that changed.
 
 1. **LLVM** (`external/llvm`, the `llvm` directory of sys-bio's LLVM 13 fork) installs into
-   `<bundle>/llvm`. It keeps the fork's defaults except: the target list
-   (`PRAENORA_DEPS_LLVM_TARGETS`), and the optional host libraries libxml2, libedit, libpfm, Z3,
-   zlib, terminfo and the language bindings, which are turned off so that the bundle does not
-   depend on what the build machine has installed. libRoadRunner links none of them.
+   `<bundle>/llvm`. The pinned commit is the head of the fork's branch `release/13.x`: the tag
+   `v13.1` and the fork's fix for GCC 13, without which `llvm/Support/Signals.h` does not compile
+   with GCC 13 (it uses `uintptr_t` without including `<cstdint>`). It keeps the fork's defaults
+   except: the target list (`PRAENORA_DEPS_LLVM_TARGETS`), and the optional host libraries
+   libxml2, libedit, libpfm, Z3, zlib, terminfo and the language bindings, which are turned off so
+   that the bundle does not depend on what the build machine has installed. libRoadRunner links
+   none of them.
 2. **libroadrunner-deps** (`external/libroadrunner-deps`) builds libSBML, SUNDIALS, POCO,
    SBMLNetwork, CLAPACK, NLEQ1, NLEQ2, rr-libstruct, expat, zlib, bzip2, NuML and libSEDML with its
    defaults, and installs into the build tree (`work/libroadrunner-deps/install`).
@@ -171,6 +174,11 @@ change together. For example, for a new libRoadRunner tag `v2.11.1`:
    releases it builds against (`libroadrunner_deps_release_version`, `llvm_release_version`).
    For json-schema-validator and nlohmann/json, use the commits that the Praenora runtime pins
    for its fetched dependencies (`cmake/PraenoraDependencies.cmake` in its repository).
+   When a release's tag does not compile with a supported compiler and the upstream branch of
+   that release holds the fix, pin the branch's commit and record the name that
+   `git describe --tags` gives it as its tag, as for LLVM (`v13.1-6-g4cb21e5280cb` on
+   `release/13.x`). Fetch such a commit by its hash:
+   `git -C external/llvm fetch --depth 1 origin <commit>`.
 3. Update the repository, tag and version of each changed component in
    `cmake/PraenoraDepsVersions.cmake`, and raise the bundle's version in `CMakeLists.txt`
    ([outputs.md](outputs.md#versions)). Check the component's license files: the list

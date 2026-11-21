@@ -13,7 +13,7 @@ and releases of this repository publish them for automated builds of the runtime
 
 | Component | Upstream | Pinned | Bundle directory |
 |---|---|---|---|
-| LLVM 13.0.1 | [sys-bio/llvm-13.x](https://github.com/sys-bio/llvm-13.x) | `v13.1` | `llvm/` |
+| LLVM 13.0.1 | [sys-bio/llvm-13.x](https://github.com/sys-bio/llvm-13.x) | `v13.1-6-g4cb21e5280cb` (`release/13.x`: `v13.1` with a fix for GCC 13) | `llvm/` |
 | libroadrunner-deps (libSBML, SUNDIALS, POCO, SBMLNetwork, expat, zlib, ...) | [sys-bio/libroadrunner-deps](https://github.com/sys-bio/libroadrunner-deps) | `v2.3.7` | copied into `roadrunner/` |
 | libRoadRunner 2.11.0 | [sys-bio/roadrunner](https://github.com/sys-bio/roadrunner) | `v2.11.0` | `roadrunner/` |
 | libAntimony 3.3.0 | [sys-bio/antimony](https://github.com/sys-bio/antimony) | `v3.3.0` | `antimony/` |
@@ -44,7 +44,7 @@ be used the same way ([docs/outputs.md](docs/outputs.md#from-a-release)).
 
 Verified on macOS arm64 with AppleClang 17 (Release): the build, the bundle's checks, and a Debug
 build of the Praenora runtime with its roadrunner and antimony providers against an unpacked copy
-of the archive, with json-schema-validator and nlohmann/json from the bundle, in which all 945
+of the archive, with json-schema-validator and nlohmann/json from the bundle, in which all 1147
 tests of the runtime pass. The Linux and Windows presets are written but not yet verified. The
 GitHub Actions workflow that builds the bundles and drafts releases is written but has not run
 yet (not yet verified), and no release has been published.

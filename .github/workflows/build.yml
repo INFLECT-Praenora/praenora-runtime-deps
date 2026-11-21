@@ -199,7 +199,7 @@ jobs:
             echo "Dependency bundles of the Praenora runtime, version $VERSION, built from"
             echo "$GITHUB_SHA."
             echo
-            echo "| Component | Version | Upstream tag |"
+            echo "| Component | Version | Upstream ref |"
             echo "|---|---|---|"
             jq -r '.components | to_entries[] |
                    "| \(.key) | \(.value.version // "-") | \(.value.ref) |"' \
