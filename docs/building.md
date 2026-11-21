@@ -139,15 +139,19 @@ The target `package` builds everything, then archives the bundle with CPack
 
 `ctest --preset <preset>` runs two tests on the bundle in `CMAKE_INSTALL_PREFIX`:
 
-- `bundle.manifest` checks that the manifest names this build's version, platform and compiler,
-  that the directories it lists for consumers exist, with `json-schema-validator` first, that the
-  files the Praenora runtime's finders look for exist, that it lists license files for this
+- `bundle.manifest` checks that the manifest names this build's version, platform, compiler and
+  build type, that the directories it lists for consumers exist, with `json-schema-validator`
+  first, that the files the Praenora runtime's finders look for exist, under their names on each
+  platform ([outputs.md](outputs.md#windows-library-names)), that it lists license files for this
   repository and for every component and that they exist, and that no CMake file of the bundle
   names a path in the build tree.
 - `bundle.consumer` configures and builds [`tests/consumer`](../tests/consumer), a project that
   finds the bundle through `find_package(PraenoraRuntimeDeps)` with the bundle as its only prefix,
   finds json-schema-validator and nlohmann/json (and checks that both come from the bundle),
   libRoadRunner and libAntimony as the Praenora runtime does, and links them into one program.
+  Before libSBML's package, it sets `EXPAT_LIBRARY` and `EXPAT_INCLUDE_DIR` from expat's package,
+  as libRoadRunner's and libAntimony's builds do
+  ([outputs.md](outputs.md#windows-library-names)).
   The program compares the versions the libraries report with the bundle's, converts an Antimony
   model to SBML and simulates it with libRoadRunner against the exact solution, and validates a
   valid and an invalid document against a JSON Schema with json-schema-validator. The

@@ -19,6 +19,7 @@ add_test(NAME bundle.manifest
         "-DOS=${PRAENORA_DEPS_OS}"
         "-DARCH=${PRAENORA_DEPS_ARCH}"
         "-DCOMPILER_LABEL=${PRAENORA_DEPS_COMPILER_LABEL}"
+        "-DBUILD_TYPE=${CMAKE_BUILD_TYPE}"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/check_manifest.cmake")
 
 add_test(NAME bundle.consumer

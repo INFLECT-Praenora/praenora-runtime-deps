@@ -3,9 +3,9 @@
 # It finds the bundle as the Praenora runtime's build can: find_package(PraenoraRuntimeDeps), then
 # json-schema-validator and nlohmann/json by their packages, which must come from the bundle,
 # libRoadRunner's CMake package and the packages its static library links, and libAntimony and
-# SBMLNetwork by header and library, all through PraenoraRuntimeDeps_PREFIX_PATH. It links one
-# program against all of them, and checks that the bundle's CMake package refuses requests it
-# cannot satisfy.
+# SBMLNetwork by header and library, all through PraenoraRuntimeDeps_PREFIX_PATH, under the names
+# the upstream builds give them on each platform. It links one program against all of them, and
+# checks that the bundle's CMake package refuses requests it cannot satisfy.
 
 cmake_minimum_required(VERSION 3.24)
 project(praenora_deps_consumer LANGUAGES C CXX)
@@ -47,16 +47,25 @@ endif()
 find_package(ZLIB CONFIG REQUIRED COMPONENTS static)
 find_package(bzip2 CONFIG QUIET)
 find_package(expat CONFIG REQUIRED)
+# libSBML's package finds expat with libSBML's own FindEXPAT module, which searches the names
+# expat and libexpat only, not those of the bundle's expat on Windows (libexpatMD, libexpatdMD for
+# Debug). As libRoadRunner's and libAntimony's builds do, EXPAT_LIBRARY and EXPAT_INCLUDE_DIR are
+# set from expat's package first; the module then uses them.
+get_target_property(EXPAT_LIBRARY expat::expat LOCATION)
+get_target_property(EXPAT_INCLUDE_DIR expat::expat INTERFACE_INCLUDE_DIRECTORIES)
 foreach(package IN ITEMS ${sbml_package} rr-libstruct clapack nleq1 nleq2 PocoFoundation PocoNet
                          PocoXML SUNDIALS roadrunner-static)
     find_package(${package} CONFIG REQUIRED)
 endforeach()
 
-# libAntimony and SBMLNetwork have no package.
+# libAntimony and SBMLNetwork have no package. On Windows their static libraries keep the prefix
+# lib, and SBMLNetwork's ends in md, or mdd for Debug (the MSVC runtime library).
 find_path(ANTIMONY_INCLUDE_DIR antimony_api.h REQUIRED NO_CACHE)
-find_library(ANTIMONY_LIBRARY antimony-static REQUIRED NO_CACHE)
+find_library(ANTIMONY_LIBRARY NAMES antimony-static libantimony-static REQUIRED NO_CACHE)
 find_path(SBMLNETWORK_INCLUDE_DIR sbmlnetwork/libsbmlnetwork_common.h REQUIRED NO_CACHE)
-find_library(SBMLNETWORK_LIBRARY NAMES sbmlnetwork-static libsbmlnetwork-static REQUIRED NO_CACHE)
+find_library(SBMLNETWORK_LIBRARY
+    NAMES sbmlnetwork-static libsbmlnetwork-static libsbmlnetwork-staticmd libsbmlnetwork-staticmdd
+    REQUIRED NO_CACHE)
 add_library(consumer::sbmlnetwork STATIC IMPORTED)
 set_target_properties(consumer::sbmlnetwork PROPERTIES
     IMPORTED_LOCATION "${SBMLNETWORK_LIBRARY}"

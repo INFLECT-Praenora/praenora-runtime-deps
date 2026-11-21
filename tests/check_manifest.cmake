@@ -1,13 +1,14 @@
 # bundle.manifest: cmake -DBUNDLE=<dir> -DBUILD_DIR=<dir> -DVERSION=<v> -DPACKAGE_NAME=<name>
-#                        -DOS=<os> -DARCH=<arch> -DCOMPILER_LABEL=<label> -P check_manifest.cmake
+#                        -DOS=<os> -DARCH=<arch> -DCOMPILER_LABEL=<label> -DBUILD_TYPE=<type>
+#                        -P check_manifest.cmake
 #
-# Checks that the bundle's manifest names this build's version and labels, that the directories
-# it lists for consumers exist, with json-schema-validator's first (it holds the nlohmann/json that
-# consumers must find first), that the files the Praenora runtime's finders look for exist, that
-# the manifest lists license files for this repository and for every component and that they
-# exist, and that no CMake file of the bundle names a path in the build tree, which would not
-# exist once the build tree is gone or the bundle is moved. Prints each check; fails at the end if
-# any failed.
+# Checks that the bundle's manifest names this build's version, labels and build type, that the
+# directories it lists for consumers exist, with json-schema-validator's first (it holds the
+# nlohmann/json that consumers must find first), that the files the Praenora runtime's finders
+# look for exist, under the names the upstream builds give them on each platform, that the
+# manifest lists license files for this repository and for every component and that they exist,
+# and that no CMake file of the bundle names a path in the build tree, which would not exist once
+# the build tree is gone or the bundle is moved. Prints each check; fails at the end if any failed.
 #
 # One upstream exception is allowed: libroadrunner-deps' package files for libSBML, NuML and
 # libSEDML append the directory of their find modules at build time to CMAKE_MODULE_PATH, as in
@@ -78,6 +79,8 @@ _json(value platform arch)
 check_equal("platform.arch" "${value}" "${ARCH}")
 _json(value compiler label)
 check_equal("compiler.label" "${value}" "${COMPILER_LABEL}")
+_json(value build_type)
+check_equal("build_type" "${value}" "${BUILD_TYPE}")
 foreach(component IN ITEMS llvm roadrunner antimony nlohmann-json json-schema-validator)
     _json(value components ${component} version)
     if(value MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
@@ -105,16 +108,27 @@ if(NOT _json_error AND count GREATER 0)
 else()
     _report(FALSE "consumer.cmake_prefix_path lists directories")
 endif()
+# The static libraries of libAntimony and SBMLNetwork keep the prefix lib on Windows too, and
+# SBMLNetwork's carries the postfix of the MSVC runtime library that libroadrunner-deps adds to
+# its libraries there: md for /MD (Release), mdd for /MDd (Debug).
 if(OS STREQUAL "windows")
     set(exe ".exe")
     set(static_prefix "")
     set(static_suffix ".lib")
     set(sbml_package libsbml-static)
+    if(BUILD_TYPE STREQUAL "Debug")
+        set(sbmlnetwork_library libsbmlnetwork-staticmdd.lib)
+    else()
+        set(sbmlnetwork_library libsbmlnetwork-staticmd.lib)
+    endif()
+    set(antimony_library libantimony-static.lib)
 else()
     set(exe "")
     set(static_prefix "lib")
     set(static_suffix ".a")
     set(sbml_package sbml-static)
+    set(sbmlnetwork_library libsbmlnetwork-static.a)
+    set(antimony_library libantimony-static.a)
 endif()
 _json(llvm consumer llvm_install_prefix)
 check_exists("${llvm}/bin/llvm-config${exe}")
@@ -127,9 +141,9 @@ foreach(file IN ITEMS
         "roadrunner/include/rr/rrVersionInfo.h"
         "roadrunner/lib/cmake/${sbml_package}-config.cmake"
         "roadrunner/include/sbmlnetwork/libsbmlnetwork_common.h"
-        "roadrunner/lib/${static_prefix}sbmlnetwork-static${static_suffix}"
+        "roadrunner/lib/${sbmlnetwork_library}"
         "antimony/include/antimony_api.h"
-        "antimony/lib/${static_prefix}antimony-static${static_suffix}"
+        "antimony/lib/${antimony_library}"
         "json-schema-validator/include/nlohmann/json.hpp"
         "json-schema-validator/include/nlohmann/json-schema.hpp"
         "json-schema-validator/share/cmake/nlohmann_json/nlohmann_jsonConfig.cmake"

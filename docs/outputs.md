@@ -36,7 +36,9 @@ licenses of what it holds.
 ```
 
 The installation directories correspond to the prefixes that the Praenora runtime's
-documentation calls `<LLVM>`, `<RR>`, `<ANT>` and `<json-schema-validator prefix>`.
+documentation calls `<LLVM>`, `<RR>`, `<ANT>` and `<json-schema-validator prefix>`. The file names
+are those of Linux and macOS; on Windows, several libraries have other names
+([Windows library names](#windows-library-names)).
 
 nlohmann/json names its version in the symbols of every function that takes its types, such as
 json-schema-validator's, so a consumer of json-schema-validator must compile against the same
@@ -262,11 +264,48 @@ with the library of the same name in `LLVM_INSTALL_PREFIX/lib`. Another consumer
 replacement. On a machine where the original location still exists, those paths keep naming the
 libraries there.
 
-The package files of libSBML, NuML and libSEDML (`roadrunner/lib/cmake/sbml-static-config.cmake`
-and the two beside it) also append a directory of the build machine to `CMAKE_MODULE_PATH`: the
-find modules of libroadrunner-deps' installation in the build tree. Where that directory does not
-exist, the line has no effect and CMake's own `FindEXPAT` module is used, as with libRoadRunner's
-release binaries.
+The package files of libSBML, NuML and libSEDML (`roadrunner/lib/cmake/sbml-static-config.cmake`,
+`libsbml-static-config.cmake` on Windows, and the two beside it) also append a directory of the
+build machine to `CMAKE_MODULE_PATH`: the find modules of libroadrunner-deps' installation in the
+build tree. Where that directory does not exist, the line has no effect and CMake's own `FindEXPAT`
+module is used, as with libRoadRunner's release binaries.
+
+### Windows library names
+
+On Windows, static libraries end in `.lib`, and the upstream builds name some of them differently
+from Linux and macOS. libroadrunner-deps adds the MSVC runtime library to the names of most of its
+libraries: `md` for `/MD` (Release) and `mdd` for `/MDd` (Debug), such as `libsbml-staticmd.lib`
+and `PocoFoundationmd.lib`. Their CMake packages name these files, so a consumer that finds them
+by package needs nothing else. The libraries without a package, and expat, need care:
+
+| Library | Linux and macOS | Windows, Release | Windows, Debug |
+|---|---|---|---|
+| libAntimony | `antimony/lib/libantimony-static.a` | `antimony/lib/libantimony-static.lib` | `antimony/lib/libantimony-static.lib` |
+| SBMLNetwork | `roadrunner/lib/libsbmlnetwork-static.a` | `roadrunner/lib/libsbmlnetwork-staticmd.lib` | `roadrunner/lib/libsbmlnetwork-staticmdd.lib` |
+| expat | `roadrunner/lib/libexpat.a` | `roadrunner/lib/libexpatMD.lib` | `roadrunner/lib/libexpatdMD.lib` |
+| libSBML's package | `sbml-static` | `libsbml-static` | `libsbml-static` |
+
+- **libAntimony.** `find_library(... NAMES antimony-static libantimony-static)` finds it with
+  every CMake version. With MSVC, CMake 3.29 and later also try the prefix `lib`, so
+  `antimony-static` alone finds it there; older versions do not.
+- **SBMLNetwork.** `find_library(... NAMES sbmlnetwork-static libsbmlnetwork-static
+  libsbmlnetwork-staticmd libsbmlnetwork-staticmdd)`, as libAntimony's own build does.
+- **expat, for libSBML's package.** `libsbml-static-config.cmake` finds expat with a `FindEXPAT`
+  module: libSBML's own while the build tree exists ([Moving a bundle](#moving-a-bundle)), and it
+  searches the names `expat` and `libexpat` only. `find_package(libsbml-static CONFIG)` then stops
+  with `Could NOT find EXPAT (missing: EXPAT_LIBRARY)`. As libRoadRunner's and libAntimony's builds
+  do, a consumer sets `EXPAT_LIBRARY` and `EXPAT_INCLUDE_DIR` from expat's package first; the
+  module then uses them:
+
+  ```cmake
+  find_package(expat CONFIG REQUIRED)
+  get_target_property(EXPAT_LIBRARY expat::expat LOCATION)
+  get_target_property(EXPAT_INCLUDE_DIR expat::expat INTERFACE_INCLUDE_DIRECTORIES)
+  find_package(libsbml-static CONFIG REQUIRED)
+  ```
+
+The check `bundle.consumer` finds the bundle this way on every platform
+([building.md](building.md#checking-a-bundle)). It is not yet verified on Windows.
 
 ## Licenses
 
