@@ -151,7 +151,10 @@ The target `package` builds everything, then archives the bundle with CPack
   libRoadRunner and libAntimony as the Praenora runtime does, and links them into one program.
   Before libSBML's package, it sets `EXPAT_LIBRARY` and `EXPAT_INCLUDE_DIR` from expat's package,
   as libRoadRunner's and libAntimony's builds do
-  ([outputs.md](outputs.md#windows-library-names)).
+  ([outputs.md](outputs.md#windows-library-names)). On Windows, it compiles the program with
+  `LIBSBML_STATIC`, `LIBLAX_STATIC` and `LIB_EXPORTS`, without which libSBML's and libAntimony's
+  headers declare their functions for import from a DLL
+  ([outputs.md](outputs.md#windows-compile-definitions)).
   The program compares the versions the libraries report with the bundle's, converts an Antimony
   model to SBML and simulates it with libRoadRunner against the exact solution, and validates a
   valid and an invalid document against a JSON Schema with json-schema-validator. The

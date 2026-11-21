@@ -4,8 +4,9 @@
 # json-schema-validator and nlohmann/json by their packages, which must come from the bundle,
 # libRoadRunner's CMake package and the packages its static library links, and libAntimony and
 # SBMLNetwork by header and library, all through PraenoraRuntimeDeps_PREFIX_PATH, under the names
-# the upstream builds give them on each platform. It links one program against all of them, and
-# checks that the bundle's CMake package refuses requests it cannot satisfy.
+# the upstream builds give them on each platform. It links one program against all of them,
+# compiled on Windows with the definitions that libSBML's and libAntimony's headers need for a
+# static link, and checks that the bundle's CMake package refuses requests it cannot satisfy.
 
 cmake_minimum_required(VERSION 3.24)
 project(praenora_deps_consumer LANGUAGES C CXX)
@@ -78,6 +79,20 @@ set_target_properties(consumer::antimony PROPERTIES
     IMPORTED_LINK_INTERFACE_LANGUAGES CXX
     INTERFACE_INCLUDE_DIRECTORIES "${ANTIMONY_INCLUDE_DIR}"
     INTERFACE_LINK_LIBRARIES "consumer::sbmlnetwork;${sbml_package}")
+
+# On Windows, the headers of libSBML and libAntimony declare their functions
+# __declspec(dllimport) unless a definition says otherwise. A call then refers to __imp_<name>,
+# which only the import library of a DLL defines, not the bundle's static libraries. libSBML's
+# headers omit the attribute with LIBSBML_STATIC and LIBLAX_STATIC, which libRoadRunner's build
+# defines and libSBML's package does not. libAntimony's header (libutil.h) has no definition for a
+# static library: with LIB_EXPORTS it declares its functions __declspec(dllexport), and calls refer
+# to the names the static library defines, as in the programs libAntimony's own build links.
+if(WIN32)
+    set_property(TARGET ${sbml_package} APPEND PROPERTY
+        INTERFACE_COMPILE_DEFINITIONS LIBSBML_STATIC LIBLAX_STATIC)
+    set_property(TARGET consumer::antimony APPEND PROPERTY
+        INTERFACE_COMPILE_DEFINITIONS LIB_EXPORTS)
+endif()
 
 add_executable(praenora_deps_consumer consumer.cpp)
 target_compile_features(praenora_deps_consumer PRIVATE cxx_std_17)

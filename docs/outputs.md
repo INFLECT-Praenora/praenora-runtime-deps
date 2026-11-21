@@ -307,6 +307,46 @@ by package needs nothing else. The libraries without a package, and expat, need 
 The check `bundle.consumer` finds the bundle this way on every platform
 ([building.md](building.md#checking-a-bundle)). It is not yet verified on Windows.
 
+### Windows compile definitions
+
+On Windows, the headers of libSBML, libAntimony and SBMLNetwork declare their functions
+`__declspec(dllimport)` unless the consumer defines otherwise. A call to such a function refers to
+the symbol `__imp_<name>`, which only the import library of a DLL defines. Against the bundle's
+static libraries, the link then fails with `LNK2019: unresolved external symbol __imp_<name>`, or
+succeeds with warning `LNK4217` only where another library has already pulled in the object file
+that defines the function. libRoadRunner's package sets `STATIC_RR` for its consumers; the packages
+of libSBML and the two libraries without a package set nothing, so a consumer defines the
+following for the code that includes their headers:
+
+| Library | Definitions | Header that reads them |
+|---|---|---|
+| libSBML | `LIBSBML_STATIC`, `LIBLAX_STATIC` | `sbml/common/extern.h`, `sbml/xml/XMLExtern.h` |
+| libAntimony | `LIB_EXPORTS` | `libutil.h` |
+| SBMLNetwork | `LIBSBMLNETWORK_EXPORTS` | `sbmlnetwork/libsbmlnetwork_common.h` |
+
+- **libSBML.** Its headers omit the attribute with these two definitions. libRoadRunner's build
+  defines them too.
+- **libAntimony.** `libutil.h` has no definition for a static library. With `LIB_EXPORTS` it
+  declares the functions `__declspec(dllexport)`, and calls then refer to the names that
+  `libantimony-static.lib` defines. libAntimony's build compiles its own programs, which link that
+  library, this way. No other header of the bundle reads `LIB_EXPORTS`.
+- **SBMLNetwork.** Its header follows libAntimony's pattern. `getLibraryVersion()`, the one
+  function of SBMLNetwork that the check calls, is declared without the attribute, so the check
+  does not define `LIBSBMLNETWORK_EXPORTS` (not yet verified for SBMLNetwork's other functions).
+
+```cmake
+if(WIN32)
+    set_property(TARGET libsbml-static APPEND PROPERTY
+        INTERFACE_COMPILE_DEFINITIONS LIBSBML_STATIC LIBLAX_STATIC)
+    target_compile_definitions(<target> PRIVATE LIB_EXPORTS)
+endif()
+```
+
+The check `bundle.consumer` compiles its program this way
+([building.md](building.md#checking-a-bundle)). It is not yet verified on Windows. The Praenora
+runtime's finders (`cmake/PraenoraRoadrunner.cmake` and `cmake/PraenoraAntimony.cmake` in its
+repository) do not set these definitions yet.
+
 ## Licenses
 
 This repository's files are under the MIT license ([LICENSE](../LICENSE)): the build, the checks,
