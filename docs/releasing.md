@@ -38,9 +38,13 @@ Its jobs:
    `git submodule update --init --recursive --depth 1`, installs Ninja where it is missing (Linux
    and macOS) or enters the Visual Studio 2022 developer environment for x64, which provides `cl`
    and Ninja (Windows), and runs the commands of [building.md](building.md#presets): configure,
-   build, `ctest`, and the `package` target. It then checks that the manifest records unmodified
-   sources (`source.modified` and every `components.<name>.modified` are `false`) and uploads the
-   archive and its `.sha256` file as a workflow artifact named after the preset, kept for 7 days.
+   build, `ctest`, and the `package` target. On Windows, it first maps the drive `P:` to the
+   checkout's parent directory with `subst` and runs these commands in `P:\praenora-runtime-deps`:
+   from the checkout's own path, the longest object file path of libroadrunner-deps is longer
+   than `cl` accepts ([building.md](building.md#platform-notes)). It then checks that the
+   manifest records unmodified sources (`source.modified` and every `components.<name>.modified`
+   are `false`) and uploads the archive and its `.sha256` file as a workflow artifact named after
+   the preset, kept for 7 days.
 3. **Draft release**, with `publish` only: downloads the archives, checks that their names carry
    the version and that they match their `.sha256` files, writes release notes with the component
    versions from the Linux bundle's manifest, and creates the draft release `v<version>` of the

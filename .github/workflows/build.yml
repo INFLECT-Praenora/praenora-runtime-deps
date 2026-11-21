@@ -120,15 +120,39 @@ jobs:
           Get-ChildItem env: | Where-Object { $before[$_.Name] -cne $_.Value } | ForEach-Object {
             "$($_.Name)=$($_.Value)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           }
+      # cl stops with error C1083 when the path of an object file is longer than 259 characters,
+      # and the upstream builds write object files up to 186 characters below build/<preset>/work
+      # (PRAENORA_DEPS_LONGEST_OBJECT_PATH, which configuration checks). In the checkout
+      # D:\a\praenora-runtime-deps\praenora-runtime-deps, the longest object file path has 266
+      # characters; in P:\praenora-runtime-deps, the same checkout through a drive letter for its
+      # parent directory, it has 242. The steps that run CMake run there, all from the same path,
+      # because the build tree records it (docs/building.md#platform-notes).
+      - name: Shorten the path of the checkout (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (Test-Path -LiteralPath 'P:\') { throw 'The drive P: exists already.' }
+          subst P: (Split-Path -Parent $env:GITHUB_WORKSPACE)
+          if ($LASTEXITCODE -ne 0) { throw "subst failed with exit code $LASTEXITCODE." }
+          $checkout = Join-Path 'P:\' (Split-Path -Leaf $env:GITHUB_WORKSPACE)
+          if (-not (Test-Path -LiteralPath (Join-Path $checkout 'CMakePresets.json'))) {
+            throw "$checkout does not hold the checkout."
+          }
+          "PRAENORA_DEPS_CHECKOUT=$checkout" |
+              Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Output "The build runs in $checkout."
       - name: Show the tools
         run: |
           cmake --version
           ninja --version
       - name: Configure
+        working-directory: ${{ env.PRAENORA_DEPS_CHECKOUT || github.workspace }}
         run: cmake --preset ${{ matrix.preset }}
       - name: Build
+        working-directory: ${{ env.PRAENORA_DEPS_CHECKOUT || github.workspace }}
         run: cmake --build --preset ${{ matrix.preset }}
       - name: Check the bundle
+        working-directory: ${{ env.PRAENORA_DEPS_CHECKOUT || github.workspace }}
         run: ctest --preset ${{ matrix.preset }}
       - name: Check that the sources were unmodified
         shell: bash
@@ -143,6 +167,7 @@ jobs:
             exit 1
           fi
       - name: Archive the bundle
+        working-directory: ${{ env.PRAENORA_DEPS_CHECKOUT || github.workspace }}
         run: cmake --build --preset ${{ matrix.preset }} --target package
       - name: Upload the archive
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

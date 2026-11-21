@@ -1,11 +1,13 @@
-# The upstream sources of the bundle, the versions they must produce and their license files.
+# The upstream sources of the bundle, the versions they must produce, their license files and the
+# length of the longest object file path their builds write.
 #
 # Each entry names a submodule under external/, the upstream repository, the tag its pinned commit
 # carries (for a commit after a tag, the name that git describe --tags gives it), the version that
 # the installed files must report, and the license files that go into the bundle. The bundle step
 # (cmake/PraenoraDepsBundle.cmake) reads the installed versions and stops the build when one
-# differs from the value here or when a license file is missing, so a submodule update and this
-# file change together (docs/building.md#updating-an-upstream-dependency).
+# differs from the value here, when a license file is missing, or when an object file path is
+# longer than PRAENORA_DEPS_LONGEST_OBJECT_PATH, so a submodule update and this file change
+# together (docs/building.md#updating-an-upstream-dependency).
 #
 # PRAENORA_DEPS_<component>_LICENSES lists files relative to the submodule. The bundle step copies
 # each to licenses/<component>/ in the bundle, under the same relative path
@@ -21,6 +23,14 @@ set(PRAENORA_DEPS_MANIFEST_VERSION 1)
 
 set(PRAENORA_DEPS_COMPONENTS llvm libroadrunner-deps roadrunner antimony nlohmann-json
     json-schema-validator)
+
+# The length of the longest path of an object file that the upstream builds write below the work
+# directory (build/<preset>/work), counted with the extension .obj. It is SUNDIALS'
+# libroadrunner-deps/build/third_party/sundials/src/sunadjointcheckpointscheme/fixed/CMakeFiles/
+# sundials_adjointcheckpointscheme_fixed_obj_static.dir/sunadjointcheckpointscheme_fixed.c.obj.
+# With MSVC, configuration stops when the work directory's path and this length exceed the 259
+# characters that cl accepts (cmake/PraenoraDepsUpstreams.cmake).
+set(PRAENORA_DEPS_LONGEST_OBJECT_PATH 186)
 
 # LLVM: the head of the fork's branch release/13.x, six commits after the tag v13.1. Its sources
 # differ from v13.1 only in the fork's fix for GCC 13 ("Updates to compile in ubuntu 24"):

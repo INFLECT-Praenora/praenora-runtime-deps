@@ -53,7 +53,7 @@ CMakeLists.txt            superbuild: project(VERSION) is the bundle's version
 CMakePresets.json         {linux-x64,macos-arm64,windows-x64}-{release,debug}
 cmake/
   PraenoraDepsVersions.cmake   upstream repositories, tags, expected versions and license files;
-                               manifest format
+                               the longest object file path; manifest format
   PraenoraDepsPlatform.cmake   OS, architecture, compiler and configuration labels; bundle name
   PraenoraDepsUpstreams.cmake  the external projects and the options passed to each
   PraenoraDepsPackage.cmake    the bundle step target and CPack (target package)

@@ -123,7 +123,10 @@ name only the files that changed.
 7. **The bundle step** ([`cmake/PraenoraDepsBundle.cmake`](../cmake/PraenoraDepsBundle.cmake))
    reads the versions the installed files report and stops when one of LLVM, libRoadRunner,
    libAntimony, nlohmann/json and json-schema-validator differs from
-   [`cmake/PraenoraDepsVersions.cmake`](../cmake/PraenoraDepsVersions.cmake).
+   [`cmake/PraenoraDepsVersions.cmake`](../cmake/PraenoraDepsVersions.cmake), or when an object
+   file path below `build/<preset>/work` is longer than `PRAENORA_DEPS_LONGEST_OBJECT_PATH` there
+   (on Windows, configuration checks the build tree's path with that length,
+   [Platform notes](#platform-notes)).
    It records the commit of this repository and of each submodule, copies this repository's
    `LICENSE` and the license files that `cmake/PraenoraDepsVersions.cmake` lists for each
    component into `licenses/` (and stops when one is missing), and writes the manifest
@@ -184,7 +187,9 @@ change together. For example, for a new libRoadRunner tag `v2.11.1`:
    ([outputs.md](outputs.md#versions)). Check the component's license files: the list
    `PRAENORA_DEPS_<component>_LICENSES` names them, the build stops when one of them is missing,
    and a new or changed license goes into the table in
-   [outputs.md](outputs.md#licenses).
+   [outputs.md](outputs.md#licenses). When the build stops because an object file path is longer
+   than `PRAENORA_DEPS_LONGEST_OBJECT_PATH`, set it to the length the message names and update
+   the lengths in [Platform notes](#platform-notes) and in the workflow's comment.
 4. Build and check the bundle, then build and test the Praenora runtime against it. The runtime
    accepts libRoadRunner 2.11.x, LLVM 13 and libAntimony 3.3.x only; another release needs a
    change in the runtime first.
@@ -207,4 +212,14 @@ only, and the manifest marks a component whose working tree differs from its rec
 - **Windows.** Not yet verified. Run the presets from a Visual Studio 2022 developer command prompt
   for x64, which provides `cl` and Ninja. The bundle uses the shared C runtime library (`/MD`, or
   `/MDd` for Debug), as the Praenora runtime requires; libRoadRunner installs a `cmake` directory
-  there that the manifest lists for consumers.
+  there that the manifest lists for consumers. `cl` stops with error C1083 when the path of an
+  object file is longer than 259 characters, and the upstream builds write object files up to 186
+  characters below the work directory `build/<preset>/work` (`PRAENORA_DEPS_LONGEST_OBJECT_PATH`
+  in [`cmake/PraenoraDepsVersions.cmake`](../cmake/PraenoraDepsVersions.cmake); the longest is a
+  SUNDIALS object file in libroadrunner-deps). The path of the checkout must therefore be at most
+  41 characters long, such as `C:\src\praenora-runtime-deps`; configuration stops with a message
+  when the build tree's path is too long. For a checkout with a longer path, map a drive letter
+  to its parent directory, for example `subst P: C:\Users\<user>\source\repos`, and run every
+  command of the presets in `P:\praenora-runtime-deps`, as the workflow does
+  ([releasing.md](releasing.md#the-workflow)). The build tree records the path it was configured
+  from, so do not mix the two paths.

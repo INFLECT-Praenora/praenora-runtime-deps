@@ -14,6 +14,9 @@
 # libroadrunner-deps itself installs into the build tree (work/libroadrunner-deps/install):
 # libRoadRunner's installation copies it, and libAntimony is built against it.
 #
+# With MSVC, configuration stops when the build tree's path is too long for cl's object files
+# (PRAENORA_DEPS_LONGEST_OBJECT_PATH in cmake/PraenoraDepsVersions.cmake).
+#
 # Every project gets the same compilers, build type, architecture, deployment target and compiler
 # launchers, position-independent code (its static libraries are linked into shared provider
 # libraries) and the library directory lib. The steps run in Ninja's console pool, one at a time,
@@ -47,6 +50,26 @@ foreach(_praenora_deps_marker IN ITEMS
             "${PROJECT_SOURCE_DIR} (docs/building.md).")
     endif()
 endforeach()
+
+# cl stops with error C1083 when the path of an object file is longer than 259 characters. With
+# MSVC, stop here when the longest object file path below the work directory
+# (PRAENORA_DEPS_LONGEST_OBJECT_PATH) would be longer, rather than late in the build.
+if(MSVC)
+    set(_praenora_deps_max_path 259)
+    string(LENGTH "${PRAENORA_DEPS_WORK_DIR}/" _praenora_deps_work_length)
+    math(EXPR _praenora_deps_object_length
+        "${_praenora_deps_work_length} + ${PRAENORA_DEPS_LONGEST_OBJECT_PATH}")
+    if(_praenora_deps_object_length GREATER _praenora_deps_max_path)
+        math(EXPR _praenora_deps_excess
+            "${_praenora_deps_object_length} - ${_praenora_deps_max_path}")
+        message(FATAL_ERROR "The path of the build tree is too long for MSVC: the longest object "
+            "file path of the upstream builds would have ${_praenora_deps_object_length} "
+            "characters, and cl accepts at most ${_praenora_deps_max_path}. Shorten the path of "
+            "the build tree\n  ${PROJECT_BINARY_DIR}\nby at least ${_praenora_deps_excess}, for "
+            "example with a checkout in a shorter directory, or through a drive letter that subst "
+            "maps to the checkout's parent directory (docs/building.md#platform-notes).")
+    endif()
+endif()
 
 set(_praenora_deps_common_args
     "-DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}"

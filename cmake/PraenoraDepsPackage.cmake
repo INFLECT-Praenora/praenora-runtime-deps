@@ -2,7 +2,8 @@
 #
 # - The target praenora_deps_bundle (part of the default build) runs cmake/PraenoraDepsBundle.cmake
 #   after the upstream builds. It reads the versions the installed files report, stops when one
-#   differs from cmake/PraenoraDepsVersions.cmake, copies the license files into licenses/, and
+#   differs from cmake/PraenoraDepsVersions.cmake or when an object file path is longer than
+#   PRAENORA_DEPS_LONGEST_OBJECT_PATH there, copies the license files into licenses/, and
 #   writes the manifest praenora-runtime-deps.json and the CMake package PraenoraRuntimeDeps into
 #   the bundle (docs/outputs.md).
 # - The target package (CPack) builds everything, then archives the bundle as
@@ -30,7 +31,7 @@ foreach(_praenora_deps_variable IN ITEMS
         PRAENORA_DEPS_DISTRIBUTION PRAENORA_DEPS_COMPILER_ID PRAENORA_DEPS_COMPILER_VERSION
         PRAENORA_DEPS_COMPILER_LABEL PRAENORA_DEPS_CXX_STDLIB PRAENORA_DEPS_MSVC_RUNTIME
         PRAENORA_DEPS_CONFIG_LABEL PRAENORA_DEPS_BUILD_TYPE PRAENORA_DEPS_GIT
-        PRAENORA_DEPS_COMPONENTS)
+        PRAENORA_DEPS_COMPONENTS PRAENORA_DEPS_LONGEST_OBJECT_PATH)
     string(APPEND _praenora_deps_inputs
         "set(${_praenora_deps_variable} [==[${${_praenora_deps_variable}}]==])\n")
 endforeach()

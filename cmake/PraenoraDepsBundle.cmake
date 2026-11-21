@@ -8,7 +8,8 @@
 #    and the libraries of libroadrunner-deps (their CMake package version files; SBMLNetwork's
 #    VERSION.txt in its sources, since it installs no version);
 # 2. stops with an error when the version of LLVM, libRoadRunner, libAntimony, nlohmann/json or
-#    json-schema-validator differs from cmake/PraenoraDepsVersions.cmake;
+#    json-schema-validator differs from cmake/PraenoraDepsVersions.cmake, or when the path of an
+#    object file below the work directory is longer than PRAENORA_DEPS_LONGEST_OBJECT_PATH there;
 # 3. records the commit of this repository and of each submodule, and whether either differs from
 #    what this repository's HEAD records;
 # 4. copies this repository's LICENSE and each component's license files
@@ -143,6 +144,30 @@ if(mismatches)
     message(FATAL_ERROR "The bundle's versions differ from cmake/PraenoraDepsVersions.cmake:"
         "${mismatches}\nUpdate the pins and the submodules together "
         "(docs/building.md#updating-an-upstream-dependency).")
+endif()
+
+# The longest object file path below the work directory, counted with .obj as on Windows, must not
+# exceed PRAENORA_DEPS_LONGEST_OBJECT_PATH: configuration with MSVC checks the build tree's path
+# with it (cmake/PraenoraDepsUpstreams.cmake).
+file(GLOB_RECURSE objects LIST_DIRECTORIES false RELATIVE "${PRAENORA_DEPS_WORK_DIR}"
+    "${PRAENORA_DEPS_WORK_DIR}/*.o" "${PRAENORA_DEPS_WORK_DIR}/*.obj")
+set(longest_object "")
+set(longest_object_length 0)
+foreach(object IN LISTS objects)
+    string(REGEX REPLACE "\\.o$" ".obj" object "${object}")
+    string(LENGTH "${object}" length)
+    if(length GREATER longest_object_length)
+        set(longest_object "${object}")
+        set(longest_object_length ${length})
+    endif()
+endforeach()
+if(longest_object_length GREATER PRAENORA_DEPS_LONGEST_OBJECT_PATH)
+    message(FATAL_ERROR "An object file path below the work directory has "
+        "${longest_object_length} characters (counted with .obj), more than "
+        "PRAENORA_DEPS_LONGEST_OBJECT_PATH (${PRAENORA_DEPS_LONGEST_OBJECT_PATH}) in "
+        "cmake/PraenoraDepsVersions.cmake:\n  ${longest_object}\nSet it to "
+        "${longest_object_length}: with MSVC, configuration checks the build tree's path with "
+        "it (docs/building.md#platform-notes).")
 endif()
 
 # 3. Commits. Empty when git or the repository is not available.
